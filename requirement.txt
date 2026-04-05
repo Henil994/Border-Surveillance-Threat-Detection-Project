@@ -1,0 +1,23 @@
+# Core ML
+torch==2.2.2
+torchaudio==2.2.2
+torchvision==0.17.2
+
+# Vision Transformer
+timm==0.9.12
+
+# Audio processing
+librosa==0.10.1
+numpy==1.26.4
+scipy==1.11.4
+
+# Data handling
+pandas==2.2.2
+
+# UI (tkinter is built-in, no install needed)
+
+# Utilities
+tqdm==4.66.2
+
+# Optional (better performance / compatibility)
+soundfile==0.12.1

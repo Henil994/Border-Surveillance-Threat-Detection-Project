@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_34192de501db9789cd8242edc8172cc7 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_34192de501db9789cd8242edc8172cc7" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_34192de501db9789cd8242edc8172cc7 = L.map(
+                "map_34192de501db9789cd8242edc8172cc7",
+                {
+                    center: [34.0837, 74.7973],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 7,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_fdf378319233a72a380ce0c256676622 = L.tileLayer(
+                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                {
+  "minZoom": 0,
+  "maxZoom": 18,
+  "maxNativeZoom": 18,
+  "noWrap": false,
+  "attribution": "Esri",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_fdf378319233a72a380ce0c256676622.addTo(map_34192de501db9789cd8242edc8172cc7);
+        
+    
+            var marker_57f044440399d273099b986351a81da7 = L.marker(
+                [34.0837, 74.7973],
+                {
+}
+            ).addTo(map_34192de501db9789cd8242edc8172cc7);
+        
+    
+            var icon_d079e8a3d282995e3c1860a132c81592 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_98d9ec83740b9396b0ada22ce3a1363a = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_f6887e4969f5529b20e8fdf4b6ce4f0d = $(`<div id="html_f6887e4969f5529b20e8fdf4b6ce4f0d" style="width: 100.0%; height: 100.0%;">Threat: Kashmir Sector</div>`)[0];
+                popup_98d9ec83740b9396b0ada22ce3a1363a.setContent(html_f6887e4969f5529b20e8fdf4b6ce4f0d);
+            
+        
+
+        marker_57f044440399d273099b986351a81da7.bindPopup(popup_98d9ec83740b9396b0ada22ce3a1363a)
+        ;
+
+        
+    
+    
+                marker_57f044440399d273099b986351a81da7.setIcon(icon_d079e8a3d282995e3c1860a132c81592);
+            
+</script>
+</html>

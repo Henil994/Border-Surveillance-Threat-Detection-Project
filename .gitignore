@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+data/
+*.pt
+*.pth
+maps/
+yes
+yes.pub
