@@ -1,147 +1,156 @@
+# evaluate_model.py (FINAL UI CONNECTED VERSION)
+
 import torch
 import numpy as np
+from torch.utils.data import DataLoader
+from sklearn.metrics import classification_report, accuracy_score
+import torch.nn.functional as F
 import threading
-import os
 
-from core.feature_extractor import extract_sequence
-from models.ast_temporal_model import ASTTemporalModel
+from dataset import AudioDataset
+from models.ast_model import ASTModel
+from config import DEVICE, CLASS_NAMES
+
+# 🔥 IMPORT UI
 from ui.evaluation_ui import EvaluatorUI
-import config
 
 
-# =========================
-# 🔥 CLASS NAMES
-# =========================
-CLASS_NAMES = {
-    0: "Human Intrusion",
-    1: "Drone Threat",
-    2: "Animal Threat",
-    3: "Environmental Noise"
-}
+CONF_THRESH = 0.50
 
 
-# =========================
-# 🔥 CALIBRATION
-# =========================
-def calibrated_predict(probs):
+def run_evaluation(ui):
 
-    h, d, a, n = probs
+    print("\n⚡ FINAL EVALUATION (UI MODE)...\n")
 
-    if np.max(probs) > 0.6:
-        return int(np.argmax(probs))
+    dataset = AudioDataset("test")
+    loader = DataLoader(dataset, batch_size=1)
 
-    if d > 0.30 and n > 0.30:
-        return 1 if d > n else 3
+    total_samples = len(dataset)
 
-    if h > 0.25:
-        return 0
+    model = ASTModel().to(DEVICE)
 
-    if a > 0.30:
-        return 2
-
-    return int(np.argmax(probs))
-
-
-# =========================
-# 🔥 LOAD DATA (NO CSV)
-# =========================
-def load_fold2():
-
-    folder = "data/UrbanSound8K/audio/fold2"
-
-    files = [f for f in os.listdir(folder) if f.endswith(".wav")]
-
-    paths = []
-    labels = []
-
-    for f in files:
-
-        path = os.path.join(folder, f)
-
-        try:
-            class_id = int(f.split("-")[1])
-        except:
-            continue
-
-        # 🔥 CLASSID → YOUR CLASS
-        if class_id == 2:
-            mapped = 0   # Human
-        elif class_id == 3:
-            mapped = 2   # Animal
-        elif class_id in [4, 5, 7, 8]:
-            mapped = 1   # Drone
-        else:
-            mapped = 3   # Noise
-
-        paths.append(path)
-        labels.append(mapped)
-
-    print(f"\nUrban fold2 Loaded: {len(paths)}")
-
-    return paths, labels
-
-
-# =========================
-# 🔥 EVALUATION
-# =========================
-def run_eval(ui):
-
-    device = config.DEVICE
-
-    model = ASTTemporalModel().to(device)
     model.load_state_dict(
-        torch.load("models/ast_model.pth", map_location=device, weights_only=True)
+        torch.load(
+            "best_model.pth",
+            map_location=DEVICE,
+            weights_only=True
+        ),
+        strict=False
     )
+
     model.eval()
 
-    paths, labels = load_fold2()
+    all_preds = []
+    all_labels = []
+    all_confs = []
 
-    total = len(paths)
-    correct = 0
+    processed = 0
 
-    for i, (path, actual) in enumerate(zip(paths, labels), 1):
+    with torch.no_grad():
 
-        try:
-            spec_seq = extract_sequence(path, segments=1).to(device)
+        for data, labels in loader:
 
-            with torch.no_grad():
-                out = model(spec_seq.unsqueeze(0))
-                probs = torch.softmax(out, dim=1).cpu().numpy()[0]
+            data = data.to(DEVICE)
 
-            pred = calibrated_predict(probs)
+            outputs = model(data)
 
-        except:
-            continue
+            probs = F.softmax(outputs, dim=1)
 
-        if pred == actual:
-            correct += 1
+            confs, preds = probs.max(dim=1)
 
-        acc = (correct / i) * 100
+            pred = preds.item()
+            actual = labels.item()
+            conf = confs.item()
 
-        # 🔥 SEND CLASS NAMES TO UI
-        if i % 5 == 0 or i == total:
+            all_preds.append(pred)
+            all_labels.append(actual)
+            all_confs.append(conf)
+
+            processed += 1
+
+            # 🔥 LIVE ACCURACY
+            current_acc = (
+                accuracy_score(all_labels, all_preds) * 100
+            )
+
+            # 🔥 UPDATE UI
             ui.update(
-                i,
-                total,
-                acc,
+                processed,
+                total_samples,
+                current_acc,
                 CLASS_NAMES[pred],
                 CLASS_NAMES[actual]
             )
 
-    final_acc = (correct / total) * 100
-    ui.show_final(final_acc)
+    # =========================
+    # FINAL METRICS
+    # =========================
+    all_preds = np.array(all_preds)
+    all_labels = np.array(all_labels)
+    all_confs = np.array(all_confs)
+
+    full_acc = accuracy_score(all_labels, all_preds)
+
+    mask = all_confs >= CONF_THRESH
+
+    filt_preds = all_preds[mask]
+    filt_labels = all_labels[mask]
+
+    if len(filt_preds) > 0:
+        filt_acc = accuracy_score(filt_labels, filt_preds)
+        coverage = 100 * len(filt_preds) / len(all_preds)
+    else:
+        filt_acc = 0.0
+        coverage = 0.0
+
+    # =========================
+    # TERMINAL REPORT
+    # =========================
+    print(f"\n📊 Full Accuracy: {full_acc*100:.2f}%")
+    print(f"🔥 High-Confidence Accuracy: {filt_acc*100:.2f}%")
+    print(f"📈 Coverage: {coverage:.2f}%")
+
+    print("\n📊 FULL REPORT:\n")
+
+    print(
+        classification_report(
+            all_labels,
+            all_preds,
+            target_names=CLASS_NAMES
+        )
+    )
+
+    if len(filt_preds) > 0:
+
+        print("\n📊 HIGH-CONFIDENCE REPORT:\n")
+
+        print(
+            classification_report(
+                filt_labels,
+                filt_preds,
+                target_names=CLASS_NAMES
+            )
+        )
+
+    # 🔥 FINAL UI RESULT
+    ui.show_final(full_acc * 100)
 
 
-# =========================
-# 🔥 START UI
-# =========================
-if __name__ == "__main__":
+def evaluate():
 
-    print("\n⚡ Evaluation Started (FINAL)...")
+    ui = EvaluatorUI("UrbanSound8K")
 
-    ui = EvaluatorUI("UrbanSound8K Fold2")
+    # 🔥 RUN EVALUATION IN THREAD
+    thread = threading.Thread(
+        target=run_evaluation,
+        args=(ui,)
+    )
 
-    thread = threading.Thread(target=run_eval, args=(ui,))
+    thread.daemon = True
     thread.start()
 
     ui.start()
+
+
+if __name__ == "__main__":
+    evaluate()

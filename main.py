@@ -23,7 +23,7 @@ def monitor():
 
     audio_file = os.path.join(DATASET_FOLDER, random.choice(audio_files))
 
-    label, confidence, probs = predictor.predict_from_audio(audio_file)
+    label, confidence, probs = predictor.predict(audio_file)
 
     dashboard.update_dashboard(label, confidence, probs)
 

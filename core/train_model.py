@@ -1,92 +1,155 @@
 import torch
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
-from models.ast_temporal_model import ASTTemporalModel
-import config
-from torch.cuda.amp import autocast, GradScaler
+import torch.nn as nn
+from torch.utils.data import DataLoader, random_split
+from collections import Counter
 
-
-class SoundDataset(Dataset):
-    def __init__(self):
-        self.dir = "data/processed"
-        self.labels = torch.load(f"{self.dir}/labels.pt")
-
-    def __len__(self):
-        return len(self.labels)
-
-    def __getitem__(self, idx):
-        spec = torch.load(f"{self.dir}/{idx}.pt")
-
-        # 🔥 2 SEGMENTS (FAST)
-        spec = spec.unsqueeze(0).repeat(2, 1, 1, 1)
-
-        return spec, torch.tensor(self.labels[idx])
+from dataset import AudioDataset
+from models.ast_model import ASTModel
+from config import DEVICE
 
 
 def train():
 
-    dataset = SoundDataset()
+    print("\n🚀 FINAL TRAINING (HIGH ACCURACY MODE)...\n")
 
-    loader = DataLoader(
+    dataset = AudioDataset("train")
+
+    train_size = int(0.8 * len(dataset))
+    val_size = len(dataset) - train_size
+
+    train_ds, val_ds = random_split(
         dataset,
-        batch_size=config.BATCH_SIZE,
-        shuffle=True,
-        drop_last=True
+        [train_size, val_size]
     )
 
-    model = ASTTemporalModel().to(config.DEVICE)
-
-    # class weights
-    class_counts = np.bincount(dataset.labels)
-    weights = 1.0 / torch.tensor(class_counts, dtype=torch.float)
-    weights = weights / weights.sum()
-    weights = weights.to(config.DEVICE)
-
-    criterion = torch.nn.CrossEntropyLoss(
-        weight=weights,
-        label_smoothing=0.05
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=8,
+        shuffle=True
     )
+
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=8
+    )
+
+    model = ASTModel().to(DEVICE)
+
+    # 🔥 Dynamic class weights
+    labels = dataset.labels.numpy()
+
+    counts = Counter(labels)
+    total = sum(counts.values())
+
+    weights = torch.tensor(
+        [total / counts[i] for i in range(4)],
+        dtype=torch.float32
+    ).to(DEVICE)
+
+    criterion = nn.CrossEntropyLoss(weight=weights)
 
     optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=config.LR,
-        weight_decay=1e-4
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=1e-5,               # 🔥 Lower LR
+        weight_decay=1e-4      # 🔥 Better regularization
     )
 
-    scaler = GradScaler()
+    best_val = 0
 
-    print("\n🚀 Fast Temporal Training...\n")
+    patience = 4
+    no_improve = 0
 
-    for epoch in range(config.EPOCHS):
+    for epoch in range(10):
 
-        correct, total = 0, 0
+        model.train()
 
-        for x, y in loader:
+        correct = total_count = 0
 
-            x, y = x.to(config.DEVICE), y.to(config.DEVICE)
+        for data, labels in train_loader:
 
-            # 🔥 LIGHT AUGMENT
-            if torch.rand(1).item() > 0.5:
-                x = x + torch.randn_like(x) * 0.02
+            data = data.to(DEVICE)
+            labels = labels.to(DEVICE)
 
             optimizer.zero_grad()
 
-            with autocast():
-                out = model(x)
-                loss = criterion(out, y)
+            outputs = model(data)
 
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+            loss = criterion(outputs, labels)
 
-            preds = out.argmax(1)
-            correct += (preds == y).sum().item()
-            total += y.size(0)
+            loss.backward()
 
-        print(f"Epoch {epoch+1}/{config.EPOCHS} | Train Acc: {(correct/total)*100:.2f}%")
+            # 🔥 Gradient clipping
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(),
+                1.0
+            )
 
-    torch.save(model.state_dict(), "models/ast_model.pth")
-    print("\n✅ Model Saved")
+            optimizer.step()
+
+            preds = outputs.argmax(1)
+
+            correct += (preds == labels).sum().item()
+            total_count += labels.size(0)
+
+        train_acc = 100 * correct / total_count
+
+        # ==========================
+        # VALIDATION
+        # ==========================
+        model.eval()
+
+        val_correct = 0
+        val_total = 0
+
+        with torch.no_grad():
+
+            for data, labels in val_loader:
+
+                data = data.to(DEVICE)
+                labels = labels.to(DEVICE)
+
+                outputs = model(data)
+
+                preds = outputs.argmax(1)
+
+                val_correct += (
+                    preds == labels
+                ).sum().item()
+
+                val_total += labels.size(0)
+
+        val_acc = 100 * val_correct / val_total
+
+        print(
+            f"Epoch {epoch+1} | "
+            f"Train={train_acc:.2f}% | "
+            f"Val={val_acc:.2f}%"
+        )
+
+        # 🔥 SAVE BEST MODEL
+        if val_acc > best_val:
+
+            best_val = val_acc
+            no_improve = 0
+
+            torch.save(
+                model.state_dict(),
+                "best_model.pth"
+            )
+
+            print("✅ BEST MODEL SAVED")
+
+        else:
+            no_improve += 1
+
+        # 🔥 EARLY STOPPING
+        if no_improve >= patience:
+
+            print("⛔ Early stopping")
+            break
+
+    print("\n🏁 FINAL BEST VALIDATION:", best_val)
+    print("🏁 Training Done")
 
 
 if __name__ == "__main__":

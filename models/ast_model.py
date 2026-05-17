@@ -1,40 +1,40 @@
-import timm
+import torch
 import torch.nn as nn
 
+from transformers import ASTForAudioClassification
 
-class ASTModel(nn.Module):
-    def __init__(self, num_classes=4):
+
+class ASTModel(torch.nn.Module):
+
+    def __init__(self):
+
         super().__init__()
 
-        self.cnn = nn.Sequential(
-            nn.Conv2d(1, 16, 3, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-
-            nn.Conv2d(16, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-
-            nn.Conv2d(32, 3, 3, padding=1),
-            nn.BatchNorm2d(3),
-            nn.ReLU()
+        self.model = ASTForAudioClassification.from_pretrained(
+            "MIT/ast-finetuned-audioset-10-10-0.4593",
+            num_labels=4,
+            ignore_mismatched_sizes=True
         )
 
-        self.backbone = timm.create_model(
-            "vit_small_patch16_224",
-            pretrained=True,
-            img_size=160
-        )
+        # Freeze all
+        for param in self.model.parameters():
+            param.requires_grad = False
 
-        in_features = self.backbone.head.in_features
-        self.backbone.head = nn.Identity()
+        # 🔥 ONLY LAST TRANSFORMER BLOCK
+        for name, param in self.model.named_parameters():
 
-        self.head = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(in_features, num_classes)
-        )
+            if (
+                "encoder.layer.11" in name
+                or "classifier" in name
+            ):
+                param.requires_grad = True
+
+        self.dropout = nn.Dropout(0.4)
 
     def forward(self, x):
-        x = self.cnn(x)
-        x = self.backbone(x)
-        return self.head(x)
+
+        outputs = self.model(x).logits
+
+        outputs = self.dropout(outputs)
+
+        return outputs
